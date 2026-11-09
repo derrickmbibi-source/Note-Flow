@@ -1,0 +1,1352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Note Flow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: three working panels (Sources | Chat | Studio) filling the viewport; below 900px they become tabs. */
+:root{
+  --bg:#eef1f7; --panel:#ffffff; --panel-2:#f5f7fc; --ink:#131a2e; --muted:#59627a; --line:#dde2ee;
+  --accent:#2b4bd6; --accent-ink:#ffffff; --accent-soft:#e5eaff; --mark:#fff0a8;
+  --ok:#17803d; --ok-soft:#e1f5e8; --bad:#b42318; --bad-soft:#fde8e6;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d111e; --panel:#151a2c; --panel-2:#1b2136; --ink:#e8ecf8; --muted:#98a2bd; --line:#262e47;
+    --accent:#8ea6ff; --accent-ink:#0d1330; --accent-soft:#222c58; --mark:#5b4d12;
+    --ok:#5fd08a; --ok-soft:#14301f; --bad:#ff8f84; --bad-soft:#3a1a18; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d111e; --panel:#151a2c; --panel-2:#1b2136; --ink:#e8ecf8; --muted:#98a2bd; --line:#262e47;
+  --accent:#8ea6ff; --accent-ink:#0d1330; --accent-soft:#222c58; --mark:#5b4d12;
+  --ok:#5fd08a; --ok-soft:#14301f; --bad:#ff8f84; --bad-soft:#3a1a18; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg); color:var(--ink); font:15px/1.5 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:12px; overflow:hidden;
+}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.i{width:18px;height:18px;flex:none}
+.app{height:100%;display:flex;flex-direction:column;gap:12px;min-height:0;max-width:1700px;margin:0 auto}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font-family:var(--f-display);font-weight:700;font-size:17px;letter-spacing:-.01em;white-space:nowrap}
+.brand-mark{width:28px;height:28px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.title-in{flex:1 1 180px;min-width:0;max-width:420px;background:transparent;border:1px solid transparent;border-radius:8px;padding:6px 10px;font-family:var(--f-display);font-weight:600;font-size:16px}
+.title-in:hover{border-color:var(--line)}
+.title-in:focus{border-color:var(--accent);background:var(--panel);outline:none}
+.top-actions{display:flex;gap:8px;margin-left:auto;align-items:center;min-width:0}
+select.nb-sel{max-width:200px;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
+.btn{display:inline-flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+a.btn{text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.warn{border-color:var(--bad);color:var(--bad)}
+.btn.sm{padding:4px 9px;font-size:13px;border-radius:8px}
+.btn[disabled]{opacity:.5;cursor:default}
+.icon-btn{display:inline-grid;place-items:center;width:30px;height:30px;border:0;background:transparent;border-radius:8px;color:var(--muted)}
+.icon-btn:hover{background:var(--panel-2);color:var(--ink)}
+.icon-btn.warn{color:var(--bad);width:auto;padding:0 8px;font-size:13px;font-weight:600}
+
+/* panels */
+.panels{flex:1;min-height:0;display:grid;grid-template-columns:minmax(250px,300px) minmax(0,1fr) minmax(290px,360px);gap:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.p-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);min-height:56px}
+.p-head h2{margin:0;font:600 15px var(--f-display);letter-spacing:.01em}
+.p-body{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.eyebrow{font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* sources */
+.sel-all{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 2px 10px;font-size:13px;color:var(--muted)}
+.src-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.src{display:flex;align-items:center;gap:4px;border-radius:10px;padding:2px 4px 2px 2px}
+.src:hover{background:var(--panel-2)}
+.src-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left;background:none;border:0;padding:8px 6px;border-radius:8px}
+.src-ico{width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+.src-txt{min-width:0;display:flex;flex-direction:column}
+.src-title{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.src-meta{font-size:12px;color:var(--muted)}
+.chk input{width:17px;height:17px;accent-color:var(--accent);margin:0 6px;cursor:pointer}
+.tag{font:500 10px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;background:var(--mark);color:var(--ink);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:1px}
+.reader{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14.5px;line-height:1.65}
+.reader-head{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.reader-head h3{margin:0;font:600 15px var(--f-display);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.empty{border:1px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--muted)}
+.empty strong{display:block;color:var(--ink);font-family:var(--f-display);font-size:15px;margin-bottom:4px}
+
+/* chat */
+.chat-body{padding:16px 18px;display:flex;flex-direction:column;gap:18px}
+.guide{background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:18px}
+.guide h3{margin:4px 0 6px;font:700 22px/1.2 var(--f-display);letter-spacing:-.015em;text-wrap:balance}
+.guide p{margin:0 0 12px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip-btn{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13.5px}
+.chip-btn:hover{border-color:var(--accent);color:var(--accent)}
+.msg.user{display:flex;justify-content:flex-end}
+.bubble{max-width:min(85%,640px);background:var(--accent-soft);border-radius:16px 16px 4px 16px;padding:9px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.bot{max-width:760px}
+.md{overflow-wrap:anywhere}
+.md p{margin:0 0 .75em}
+.md h2,.md h3,.md h4,.md h5{font-family:var(--f-display);line-height:1.25;margin:1.1em 0 .4em;letter-spacing:-.005em;text-wrap:balance}
+.md h2{font-size:19px}.md h3{font-size:16.5px}.md h4,.md h5{font-size:15px}
+.md ul,.md ol{margin:0 0 .8em;padding-left:1.3em}
+.md li{margin:.2em 0}
+.md code{font:13px var(--f-mono);background:var(--panel-2);padding:1px 5px;border-radius:5px}
+.md pre{background:var(--panel-2);border-radius:10px;padding:10px 12px;overflow:auto}
+.md pre code{background:none;padding:0}
+.md>:last-child{margin-bottom:0}
+.cite{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;margin:0 1px;border:0;border-radius:9px;background:var(--accent-soft);color:var(--accent);font:600 11px var(--f-mono);vertical-align:1px}
+.cite:hover{background:var(--accent);color:var(--accent-ink)}
+.cited{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.cited button{display:inline-flex;align-items:center;gap:6px;max-width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:3px 8px;font-size:12.5px;color:var(--muted)}
+.cited button:hover{border-color:var(--accent);color:var(--ink)}
+.cited b{font:600 11px var(--f-mono);color:var(--accent)}
+.cited span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg-acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.msg-acts .chip-btn{padding:3px 10px;font-size:12.5px;color:var(--muted)}
+.think{color:var(--muted);margin:0}
+.dots::after{content:"";animation:dots 1.2s steps(4,end) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+.err{color:var(--bad);margin:8px 0 0;font-size:13.5px}
+.composer{padding:10px 14px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.composer .chips{margin-bottom:2px}
+.box{display:flex;align-items:flex-end;gap:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:8px 8px 8px 14px}
+.box:focus-within{border-color:var(--accent)}
+.box textarea{flex:1;min-width:0;border:0;background:transparent;resize:none;outline:none;max-height:140px;line-height:1.45;padding:5px 0}
+.send{width:36px;height:36px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.send[disabled]{opacity:.4;cursor:default}
+.meta-row{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted)}
+
+/* studio */
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+.tile:hover{border-color:var(--accent)}
+.tile .i{color:var(--accent)}
+.tile b{font:600 14px var(--f-display)}
+.tile small{color:var(--muted);font-size:12px;line-height:1.3}
+.list-head{display:flex;align-items:center;justify-content:space-between;margin:18px 0 8px}
+.items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.item{display:flex;align-items:center;gap:2px;border-radius:10px}
+.item:hover{background:var(--panel-2)}
+.item-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;text-align:left;padding:8px 6px;border-radius:8px}
+.item-main .i{color:var(--accent)}
+.item-t{min-width:0;display:flex;flex-direction:column}
+.item-t b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-t small{color:var(--muted);font-size:12px}
+.item-t small.bad{color:var(--bad)}
+.detail-head{display:flex;align-items:center;gap:4px;margin-bottom:12px}
+.detail-head h3{margin:0;font:600 15px var(--f-display);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-in{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+textarea.note-in{min-height:220px;resize:vertical;line-height:1.5}
+.working{display:flex;align-items:center;gap:8px;color:var(--muted);padding:18px 2px}
+
+/* flashcards */
+.deck{display:flex;flex-direction:column;gap:12px}
+.card{min-height:200px;display:grid;place-items:center;text-align:center;padding:22px;background:var(--panel-2);border:1px solid var(--line);border-radius:16px;width:100%;font-size:17px;line-height:1.45;overflow-wrap:anywhere}
+.card:hover{border-color:var(--accent)}
+.card .side{font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:8px}
+.card.back{background:var(--accent-soft);border-color:transparent}
+.deck-nav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.deck-nav .count{font:500 13px var(--f-mono);color:var(--muted)}
+
+/* quiz */
+.q-top{display:flex;justify-content:space-between;font:500 12px var(--f-mono);color:var(--muted);margin-bottom:8px;letter-spacing:.04em}
+.q-text{font:600 17px/1.35 var(--f-display);margin:0 0 12px;text-wrap:balance}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;gap:10px;align-items:flex-start;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.opt:hover:not([disabled]){border-color:var(--accent)}
+.opt .k{font:600 12px var(--f-mono);width:22px;height:22px;border-radius:6px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;flex:none;margin-top:1px}
+.opt.right{background:var(--ok-soft);border-color:var(--ok)}
+.opt.wrong{background:var(--bad-soft);border-color:var(--bad)}
+.why{margin:12px 0;padding:10px 12px;border-radius:10px;background:var(--panel-2);font-size:14px}
+.score{font:700 40px var(--f-display);letter-spacing:-.02em;margin:6px 0}
+
+/* mind map */
+.mm-root{font:700 18px/1.25 var(--f-display);background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:10px 14px;margin-bottom:10px;text-wrap:balance}
+.tree,.tree ul{list-style:none;margin:0;padding:0}
+.tree ul{margin-left:12px;padding-left:12px;border-left:1.5px solid var(--line)}
+.tree li{margin:4px 0}
+.tree summary{cursor:pointer;font-weight:600;padding:3px 6px;border-radius:6px;list-style-position:inside}
+.tree summary:hover{background:var(--panel-2)}
+.tree .leaf{padding:3px 6px 3px 20px;color:var(--ink)}
+.tree > li > details > summary,.tree > li > .leaf{font-family:var(--f-display);font-size:15.5px}
+
+/* research + segmented control */
+.seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:none;border-radius:8px;padding:5px 12px;font:600 13.5px var(--f-display);color:var(--muted)}
+.seg button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.rs-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.rs-row{display:flex;gap:8px}
+.rs-row input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.rs-row input:focus{border-color:var(--accent);outline:none}
+.modes{display:flex;flex-wrap:wrap;gap:8px}
+.modes .chip-btn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.notice{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px;color:var(--muted)}
+.opt-line{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.opt-line input{accent-color:var(--accent);width:16px;height:16px;margin:0}
+.rs-result{border:1px solid var(--line);border-radius:14px;padding:16px 18px;max-width:780px}
+.rs-result h3.rt{margin:0 0 2px;font:700 19px var(--f-display);letter-spacing:-.01em;text-wrap:balance}
+.rs-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+
+/* dialog + toast */
+.st.good{color:var(--ok)}
+.st.bad{color:var(--bad)}
+.scrim{position:fixed;inset:0;background:rgba(10,14,28,.55);display:grid;place-items:center;padding:16px;z-index:30}
+.dlg{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:min(560px,100%);max-height:100%;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+.dlg h2{margin:0;font:700 19px var(--f-display)}
+.dlg label.l{font-size:13px;font-weight:600;margin-top:2px}
+.dlg input[type=text],.dlg input[type=password],.dlg textarea{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.dlg textarea{min-height:170px;resize:vertical}
+.drop{border:1.5px dashed var(--line);border-radius:12px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:14px}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:10px;font-size:14px;z-index:40;max-width:calc(100% - 32px)}
+
+/* tab bar (small screens only) */
+.tabbar{display:none}
+@media (max-width:900px){
+  .panels{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+  .panel{display:none}
+  .panel.on{display:flex}
+  .tabbar{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px}
+  .tabbar button{flex:1;border:0;background:none;border-radius:10px;padding:9px 6px;font-weight:600;color:var(--muted)}
+  .tabbar button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+  .brand span.w{display:none}
+  .top-actions{margin-left:0;flex:1 1 100%}
+  select.nb-sel{flex:1;max-width:none}
+}
+@media (prefers-reduced-motion:reduce){.dots::after{animation:none;content:"..."}}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><span class="brand-mark" id="logo"></span><span class="w">Note Flow</span></div>
+    <input id="nbTitle" class="title-in" type="text" aria-label="Notebook title" maxlength="80">
+    <div class="top-actions">
+      <select id="nbSel" class="nb-sel" aria-label="Switch notebook"></select>
+      <button class="btn" id="aiBtn" data-act="settings"></button>
+      <button class="btn" id="nbNew" data-act="newNb"></button>
+      <button class="btn" id="nbDel" data-act="delNb"></button>
+    </div>
+  </header>
+
+  <main class="panels">
+    <section class="panel" id="pSources" aria-label="Sources"></section>
+    <section class="panel on" id="pChat" aria-label="Chat"></section>
+    <section class="panel" id="pStudio" aria-label="Studio"></section>
+  </main>
+
+  <nav class="tabbar" role="tablist" aria-label="Panels">
+    <button role="tab" data-act="tab" data-t="sources" aria-selected="false">Sources</button>
+    <button role="tab" data-act="tab" data-t="chat" aria-selected="true">Chat</button>
+    <button role="tab" data-act="tab" data-t="studio" aria-selected="false">Studio</button>
+  </nav>
+</div>
+
+<div class="scrim" id="aiDlg" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
+    <h2 id="aiTitle">AI settings</h2>
+    <p class="hint">Note Flow uses Google Gemini, which has a free tier. Create a free key in Google AI Studio, paste it here once, and chat, research and every study tool will use it.</p>
+    <a class="btn sm" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="align-self:flex-start">Get a free Gemini API key</a>
+    <label class="l" for="gKey">Gemini API key</label>
+    <input id="gKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key">
+    <label class="l" for="gModel">Model</label>
+    <input id="gModel" type="text" list="gModels" autocomplete="off" spellcheck="false">
+    <datalist id="gModels"><option value="gemini-2.5-flash"><option value="gemini-2.5-flash-lite"><option value="gemini-flash-latest"><option value="gemini-2.0-flash"></datalist>
+    <p class="hint st" id="aiMsg" role="status"></p>
+    <p class="hint">Your key stays in this browser and is sent only to Google. Google's terms say content sent on the free tier can be used to improve its products, so avoid private information.</p>
+    <div class="row">
+      <button class="btn warn" data-act="aiRemove" id="aiRemoveBtn">Remove key</button>
+      <button class="btn" data-act="aiTest">Test connection</button>
+      <button class="btn" data-act="aiClose">Cancel</button>
+      <button class="btn primary" data-act="aiSave">Save</button>
+    </div>
+  </div>
+</div>
+<div class="scrim" id="addDlg" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+    <h2 id="addTitle">Add a source</h2>
+    <div class="drop" id="dropZone">
+      <span>Drop files here: PDF, Word (.docx), .txt, .md, .csv, .html</span>
+      <label class="btn sm" for="fileIn">Choose files</label>
+      <input id="fileIn" type="file" multiple accept=".pdf,.docx,.txt,.md,.markdown,.csv,.tsv,.json,.html,.htm,text/*" hidden>
+    </div>
+    <label class="l" for="srcTitle">Title</label>
+    <input id="srcTitle" type="text" maxlength="120" placeholder="Biology, Chapter 4">
+    <label class="l" for="srcText">Or paste text</label>
+    <textarea id="srcText" placeholder="Paste lecture notes, an article, a chapter, or your own summary."></textarea>
+    <p class="hint" id="addMsg">Very long sources are trimmed when sent to Claude, so split large books into chapters.</p>
+    <div class="row">
+      <button class="btn" data-act="addCancel">Cancel</button>
+      <button class="btn primary" data-act="addSubmit">Add source</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- helpers ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
+const svg = p => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const I = {
+  doc:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  send:'<path d="M12 19V5M6 11l6-6 6 6"/>',
+  stop:'<rect x="7" y="7" width="10" height="10" rx="1.5"/>',
+  copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
+  save:'<path d="M6 4h12v17l-6-4-6 4z"/>',
+  trash:'<path d="M5 7h14M10 11v6M14 11v6M8 7l1-3h6l1 3M7 7l1 13h8l1-13"/>',
+  back:'<path d="M15 5l-7 7 7 7"/>',
+  summary:'<path d="M5 6h14M5 12h14M5 18h9"/>',
+  guide:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>',
+  faq:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/>',
+  cards:'<rect x="3" y="6" width="14" height="12" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v10"/>',
+  quiz:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12l2 2 4-4"/>',
+  map:'<circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><path d="M10 10.5L6.3 7.3M14 10.5l3.7-3.2M10 13.5l-3.7 3.2M14 13.5l3.7 3.2"/>',
+  audio:'<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4"/>',
+  note:'<path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+  download:'<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
+  refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
+  shuffle:'<path d="M4 7h3c5 0 5 10 10 10h3M4 17h3c1.5 0 2.5-.8 3.4-2M14 8c.9-1 1.9-1 3-1h3M18 4l3 3-3 3M18 14l3 3-3 3"/>',
+  next:'<path d="M9 5l7 7-7 7"/>',
+  play:'<path d="M8 5l11 7-11 7z"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>'
+};
+const ic = k => svg(I[k]);
+const words = t => (t.trim().match(/\S+/g) || []).length;
+const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, {month:'short', day:'numeric'});
+
+let toastT;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3200);
+}
+
+/* ---------- markdown (small, safe: everything is escaped first) ---------- */
+function md(src, cite){
+  const lines = String(src || '').replace(/\r/g, '').split('\n');
+  let html = '', list = null, para = [], code = null;
+  const inline = t => {
+    let s = esc(t);
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+    if(cite){
+      s = s.replace(/\[(\d{1,2}(?:\s*,\s*\d{1,2})*)\]/g, (m, g) =>
+        g.split(',').map(n => `<button class="cite" data-act="cite" data-n="${n.trim()}" aria-label="Source ${n.trim()}">${n.trim()}</button>`).join(''));
+    }
+    return s;
+  };
+  const flushP = () => { if(para.length){ html += '<p>' + inline(para.join(' ')) + '</p>'; para = []; } };
+  const flushL = () => { if(list){ html += '</' + list + '>'; list = null; } };
+  for(const raw of lines){
+    if(code !== null){
+      if(/^```/.test(raw)){ html += '<pre><code>' + esc(code.join('\n')) + '</code></pre>'; code = null; }
+      else code.push(raw);
+      continue;
+    }
+    if(/^```/.test(raw)){ flushP(); flushL(); code = []; continue; }
+    const h = /^(#{1,4})\s+(.*)$/.exec(raw);
+    if(h){ flushP(); flushL(); const lv = Math.min(h[1].length + 1, 5); html += `<h${lv}>${inline(h[2])}</h${lv}>`; continue; }
+    const ul = /^\s*[-*•]\s+(.*)$/.exec(raw), ol = /^\s*\d+[.)]\s+(.*)$/.exec(raw);
+    if(ul || ol){
+      flushP();
+      const t = ul ? 'ul' : 'ol';
+      if(list !== t){ flushL(); html += '<' + t + '>'; list = t; }
+      html += '<li>' + inline((ul || ol)[1]) + '</li>';
+      continue;
+    }
+    if(!raw.trim()){ flushP(); flushL(); continue; }
+    flushL(); para.push(raw.trim());
+  }
+  if(code !== null) html += '<pre><code>' + esc(code.join('\n')) + '</code></pre>';
+  flushP(); flushL();
+  return html;
+}
+
+/* ---------- state ---------- */
+const KEY = 'note-flow.v1';
+
+function seed(){
+  const nb = {id: uid(), title: 'My first notebook', sources: [], messages: [], items: []};
+  return {active: nb.id, notebooks: [nb]};
+}
+function load(){
+  try{
+    const r = localStorage.getItem(KEY);
+    if(r){ const o = JSON.parse(r); if(o && Array.isArray(o.notebooks) && o.notebooks.length) return o; }
+  }catch(e){}
+  return null;
+}
+let S = load() || seed();
+if(!S.notebooks.some(n => n.id === S.active)) S.active = S.notebooks[0].id;
+let saveT;
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(() => {
+    try{
+      // never persist an in-flight answer as if it were finished
+      localStorage.setItem(KEY, JSON.stringify(S, (k, v) => (k === 'pending' ? undefined : v)));
+    }catch(e){ if(!save.warned){ save.warned = true; toast('This browser is not keeping your notebook. Export your notes to keep them.'); } }
+  }, 250);
+}
+const nb = () => S.notebooks.find(n => n.id === S.active);
+for(const n of S.notebooks){ // tidy anything left mid-flight by a closed page
+  n.messages = (n.messages || []).filter(m => !m.pending);
+  n.research = (n.research || []).filter(r => r.status !== 'working');
+  (n.items || []).forEach(it => { if(it.status === 'working'){ it.status = 'error'; it.error = 'Generation was interrupted. Try again.'; } });
+}
+
+const ui = {
+  tab: 'chat', src: {mode: 'list', id: null}, std: {mode: 'home', id: null},
+  deck: {i: 0, flip: false, order: []}, quiz: {i: 0, pick: null, score: 0, done: false},
+  busy: false, ctl: null, confirm: null, editNote: false, speaking: false, aiOff: false,
+  mid: 'chat', rmode: 'overview', rtailor: true, rq: '', rbusy: false, rctl: null, rcur: null
+};
+let confirmT;
+function askConfirm(key){
+  ui.confirm = key; clearTimeout(confirmT);
+  confirmT = setTimeout(() => { ui.confirm = null; renderAll(); }, 3500);
+  renderAll();
+}
+
+/* ---------- AI engine: Gemini (free key) first, Claude when the page runs inside Claude ---------- */
+const GBASE = 'https://generativelanguage.googleapis.com/v1beta';
+const GEMINI_DEFAULT = 'gemini-2.5-flash';
+const DEFAULT_KEY = (() => { try{ return atob('UVRjeHJHWEk4U2ROZVB6ek1VdnhVSGljUnNiNlpkRXhOM0RQdmIwUEpQeEk2TlI4YkEuUUE=').split('').reverse().join(''); }catch(e){ return ''; } })();
+const AIKEY = 'note-flow.ai';
+let aiCfgMem = null;
+function aiCfg(){
+  if(aiCfgMem) return aiCfgMem;
+  let c = {};
+  try{ c = JSON.parse(localStorage.getItem(AIKEY) || '{}') || {}; }catch(e){}
+  aiCfgMem = {key: String(c.key || (c.off ? '' : DEFAULT_KEY)), model: String(c.model || GEMINI_DEFAULT), off: !!c.off};
+  return aiCfgMem;
+}
+function setAiCfg(c){
+  aiCfgMem = c;
+  try{ localStorage.setItem(AIKEY, JSON.stringify(c)); }catch(e){ toast('This browser will not keep your key after you close the page.'); }
+}
+let samplePromise;
+function getSample(){
+  if(!samplePromise){
+    samplePromise = (async () => {
+      try{ return window.claude && window.claude.use ? await window.claude.use('sample') : null; }
+      catch(e){ return null; }
+    })();
+  }
+  return samplePromise;
+}
+ui.aiOff = !aiCfg().key;
+getSample().then(sm => { ui.claudeOK = !!sm; refreshEngine(); });
+const engineReady = () => !!aiCfg().key || !!ui.claudeOK;
+function refreshEngine(){ ui.aiOff = !engineReady(); renderAll(); }
+
+function mapStatus(status, msg){
+  if(status === 400) return /api key|API_KEY/i.test(msg || '') ? 'bad_key' : 'bad_request';
+  if(status === 401 || status === 403) return 'bad_key';
+  if(status === 404) return 'not_found';
+  if(status === 429) return 'quota';
+  return 'upstream_error';
+}
+function errCopy(e){
+  const b = errBase(e), m = e && e.message;
+  return (m && ['bad_key', 'quota', 'not_found', 'upstream_error'].includes(e.code)) ? b + ' (Google said: ' + String(m).slice(0, 220) + ')' : b;
+}
+function errBase(e){
+  const c = e && e.code;
+  if(c === 'no_key') return 'Connect an AI first: open AI settings and paste a free Gemini key.';
+  if(c === 'bad_key') return 'Gemini rejected the API key. Open AI settings, paste a valid key and press Test connection.';
+  if(c === 'quota') return 'The free Gemini limit was reached (it allows a limited number of requests per minute and per day). Wait a minute and try again, or pick a different model in AI settings.';
+  if(c === 'not_found') return 'That Gemini model was not found. Open AI settings, press Test connection and pick a model from the list.';
+  if(c === 'network') return 'Could not reach Google. Check your internet connection. This page cannot reach Google while it is open inside Claude, so open the downloaded note-flow.html file in your browser.';
+  if(c === 'blocked') return 'Gemini declined to answer this one. Try rewording it.';
+  if(c === 'bad_request') return 'Gemini could not process this request' + (e.message ? ': ' + e.message : '.') + ' Try turning off some sources.';
+  if(c === 'not_granted') return 'Claude access was declined for this page. Reload the page to be asked again.';
+  if(c === 'rate_limited') return 'Too many requests, or your usage limit was reached. Wait a moment and try again.';
+  if(c === 'session_expired') return 'Your session expired. Sign in again, then retry.';
+  if(c === 'sampling_disabled' || c === 'capability_disabled' || c === 'not_declared') return 'Claude is not available for this account in this view.';
+  if(c === 'prompt_too_large') return 'The selected sources are too large. Turn some off or split them into smaller sources.';
+  if(c === 'invalid_json') return 'The AI replied in a format this page could not read. Try again.';
+  if(c === 'refused') return 'The AI declined to answer this one. Try rewording it.';
+  if(c === 'empty_completion') return 'The AI returned nothing. Try asking in a different way.';
+  return 'Something went wrong reaching the AI. Try again.';
+}
+
+function parseJson(t){
+  const s = String(t || '').trim();
+  try{ return JSON.parse(s); }catch(e){}
+  const f = /```(?:json)?\s*([\s\S]*?)```/.exec(s);
+  if(f){ try{ return JSON.parse(f[1]); }catch(e){} }
+  const a = s.search(/[\[{]/), b = Math.max(s.lastIndexOf(']'), s.lastIndexOf('}'));
+  if(a >= 0 && b > a){ try{ return JSON.parse(s.slice(a, b + 1)); }catch(e){} }
+  throw {code: 'invalid_json', text: s};
+}
+function toContents(input){
+  const turns = typeof input === 'string' ? [{role: 'user', content: input}] : input;
+  const out = [];
+  for(const t of turns){
+    const role = t.role === 'assistant' ? 'model' : 'user';
+    const last = out[out.length - 1];
+    if(last && last.role === role) last.parts[0].text += '\n\n' + t.content;
+    else out.push({role, parts: [{text: t.content}]});
+  }
+  return out;
+}
+async function geminiCall(input, o, json){
+  const cfg = aiCfg();
+  if(!cfg.key) throw {code: 'no_key'};
+  const body = {contents: toContents(input), generationConfig: {maxOutputTokens: 8192}};
+  if(json) body.generationConfig.responseMimeType = 'application/json';
+  const url = GBASE + '/models/' + encodeURIComponent(cfg.model) + ':streamGenerateContent?alt=sse';
+  const aborted = () => !!(o.signal && o.signal.aborted);
+  let res;
+  try{
+    res = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'x-goog-api-key': cfg.key}, body: JSON.stringify(body), signal: o.signal});
+  }catch(e){ throw aborted() ? {code: 'cancelled'} : {code: 'network'}; }
+  if(!res.ok){
+    let msg = ''; try{ msg = (await res.json()).error.message || ''; }catch(e){}
+    throw {code: mapStatus(res.status, msg), message: msg};
+  }
+  let text = '', finish = '', buf = '';
+  const handle = ev => {
+    for(const line of ev.split(/\r?\n/)){
+      if(!line.startsWith('data:')) continue;
+      const raw = line.slice(5).trim(); if(!raw || raw === '[DONE]') continue;
+      let j; try{ j = JSON.parse(raw); }catch(e){ continue; }
+      if(j.error) throw {code: mapStatus(j.error.code || 500, j.error.message), message: j.error.message};
+      if(j.promptFeedback && j.promptFeedback.blockReason) throw {code: 'blocked'};
+      const c = j.candidates && j.candidates[0];
+      if(!c) continue;
+      const parts = (c.content && c.content.parts) || [];
+      const add = parts.filter(x => typeof x.text === 'string' && !x.thought).map(x => x.text).join('');
+      if(add){ text += add; if(o.onText) o.onText({text, delta: add}); }
+      if(c.finishReason) finish = c.finishReason;
+    }
+  };
+  try{
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    for(;;){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buf += dec.decode(value, {stream: true});
+      let m;
+      while((m = /\r?\n\r?\n/.exec(buf))){ handle(buf.slice(0, m.index)); buf = buf.slice(m.index + m[0].length); }
+    }
+    if(buf.trim()) handle(buf);
+  }catch(e){
+    if(e && e.code) throw Object.assign({}, e, {text: text || undefined});
+    throw aborted() ? {code: 'cancelled', text: text || undefined} : {code: 'network', text: text || undefined};
+  }
+  if(!text.trim()) throw {code: (finish === 'SAFETY' || finish === 'RECITATION' || finish === 'PROHIBITED_CONTENT') ? 'blocked' : 'empty_completion'};
+  return {text, truncated: finish === 'MAX_TOKENS'};
+}
+const canFallBack = e => !!(e && e.code === 'network' && !e.text && ui.claudeOK);
+async function aiText(input, o = {}){
+  if(aiCfg().key){
+    try{ return await geminiCall(input, o, false); }
+    catch(e){ if(!canFallBack(e)) throw e; }
+  }
+  const sm = await getSample();
+  if(!sm) throw {code: 'no_key'};
+  return sm(input, {cache: false, signal: o.signal, onText: o.onText});
+}
+async function aiJson(input, o = {}){
+  if(aiCfg().key){
+    try{ return parseJson((await geminiCall(input, o, true)).text); }
+    catch(e){ if(!canFallBack(e)) throw e; }
+  }
+  const sm = await getSample();
+  if(!sm) throw {code: 'no_key'};
+  return sm.json(input, {cache: false, signal: o.signal});
+}
+
+/* ---------- context for Claude ---------- */
+const CTX_CAP = 150000;
+const activeSources = n => n.sources.filter(s => s.on && s.text.trim());
+function ctx(list){
+  const cap = Math.floor(CTX_CAP / Math.max(1, list.length));
+  return list.map((s, i) => {
+    const t = s.text.length > cap ? s.text.slice(0, cap) + '\n[trimmed]' : s.text;
+    return `[${i + 1}] ${s.title}\n${t}`;
+  }).join('\n\n---\n\n');
+}
+const GROUND = 'Use only the sources. If they do not cover something, say so briefly instead of guessing. ';
+
+const PROMPTS = {
+  summary: c => `You are a study assistant. Here are the learner's sources, numbered.\n\n${c}\n\n---\nWrite a clear summary for someone meeting this material for the first time. Start with a 2-3 sentence overview, then a "## Key ideas" bullet list (5-8 bullets), then a short "## Why it matters" paragraph. ${GROUND}Use markdown.`,
+  guide: c => `You are a study assistant. Here are the learner's sources, numbered.\n\n${c}\n\n---\nCreate a study guide in markdown with these sections: "## Key terms" (term: definition, 8-12 items), "## Core concepts" (short explanations), "## Short-answer questions" (6 numbered questions, no answers), "## Answer key" (brief numbered answers), "## Essay prompts" (2). ${GROUND}`,
+  faq: c => `You are a study assistant. Here are the learner's sources, numbered.\n\n${c}\n\n---\nWrite the 8 questions a learner is most likely to ask about this material. Format each as a "### question" heading followed by a 2-4 sentence answer. ${GROUND}Use markdown.`,
+  audio: c => `You are a study assistant. Here are the learner's sources, numbered.\n\n${c}\n\n---\nWrite a lively two-host audio overview script of about 450-600 words. Hosts are Alex (curious, asks questions) and Sam (explains clearly with examples). Every line must start with "Alex:" or "Sam:". No stage directions, no markdown, no headings. Cover the main ideas accurately and end with a one-line recap. ${GROUND}`,
+  flashcards: c => `You are a study assistant. Here are the learner's sources, numbered.\n\n${c}\n\n---\nCreate 12 flashcards covering the most testable facts and concepts. Reply with only a JSON array of objects like {"q":"question or term","a":"concise answer"}. ${GROUND}`,
+  quiz: c => `You are a study assistant. Here are the learner's sources, numbered.\n\n${c}\n\n---\nCreate an 8-question multiple-choice quiz. Reply with only a JSON array of objects like {"q":"question","options":["A text","B text","C text","D text"],"answer":0,"why":"one-sentence explanation"} where "answer" is the 0-based index of the correct option. Vary the position of the correct answer. ${GROUND}`,
+  mindmap: c => `You are a study assistant. Here are the learner's sources, numbered.\n\n${c}\n\n---\nBuild a mind map of the material. Reply with only one JSON object like {"title":"central topic","children":[{"title":"branch","children":[{"title":"detail"}]}]}. Use 4-7 main branches, each with 2-5 children, up to 3 levels deep. Keep node titles under 10 words. ${GROUND}`
+};
+const KINDS = {
+  summary:{label:'Summary', desc:'Key ideas in one read', icon:'summary', json:false},
+  guide:{label:'Study guide', desc:'Terms, concepts, questions', icon:'guide', json:false},
+  faq:{label:'FAQ', desc:'Likely questions, answered', icon:'faq', json:false},
+  audio:{label:'Audio overview', desc:'Two-host script you can play', icon:'audio', json:false},
+  flashcards:{label:'Flashcards', desc:'12 cards to flip through', icon:'cards', json:true},
+  quiz:{label:'Quiz', desc:'8 questions with feedback', icon:'quiz', json:true},
+  mindmap:{label:'Mind map', desc:'Topics as an expandable tree', icon:'map', json:true},
+  note:{label:'Note', desc:'', icon:'note', json:false}
+};
+
+function normalize(kind, d){
+  const str = x => (typeof x === 'string' ? x.trim() : '');
+  if(kind === 'flashcards'){
+    const a = (Array.isArray(d) ? d : (d && d.cards) || []).map(x => ({q: str(x && x.q), a: str(x && x.a)})).filter(x => x.q && x.a);
+    return a.length ? a : null;
+  }
+  if(kind === 'quiz'){
+    const a = (Array.isArray(d) ? d : (d && d.questions) || []).map(x => ({
+      q: str(x && x.q), options: Array.isArray(x && x.options) ? x.options.map(str).filter(Boolean) : [],
+      answer: Number.isInteger(x && x.answer) ? x.answer : -1, why: str(x && x.why)
+    })).filter(x => x.q && x.options.length >= 2 && x.answer >= 0 && x.answer < x.options.length);
+    return a.length ? a : null;
+  }
+  if(kind === 'mindmap'){
+    const walk = (o, depth) => {
+      const t = str(o && o.title); if(!t) return null;
+      const kids = depth < 4 && Array.isArray(o.children) ? o.children.map(c => walk(c, depth + 1)).filter(Boolean) : [];
+      return {title: t, children: kids};
+    };
+    const r = walk(d, 0);
+    return r && r.children.length ? r : null;
+  }
+  return null;
+}
+
+/* ---------- rendering: top bar ---------- */
+$('#logo').innerHTML = svg('<path d="M6 4h10a3 3 0 0 1 3 3v13H9a3 3 0 0 1-3-3z"/><path d="M9 9h6M9 13h4"/>');
+$('#nbNew').innerHTML = ic('plus') + '<span>New</span>';
+
+function renderTop(){
+  const n = nb();
+  const t = $('#nbTitle'); if(document.activeElement !== t) t.value = n.title;
+  $('#nbSel').innerHTML = S.notebooks.map(x => `<option value="${x.id}"${x.id === S.active ? ' selected' : ''}>${esc(x.title || 'Untitled')}</option>`).join('');
+  $('#aiBtn').innerHTML = ic('gear') + '<span>' + (aiCfg().key ? 'Gemini' : ui.claudeOK ? 'AI' : 'Connect AI') + '</span>';
+  const del = $('#nbDel');
+  const armed = ui.confirm === 'nb';
+  del.className = 'btn' + (armed ? ' warn' : '');
+  del.innerHTML = armed ? 'Confirm delete' : ic('trash') + '<span>Delete</span>';
+  del.setAttribute('aria-label', armed ? 'Confirm deleting this notebook' : 'Delete this notebook');
+}
+
+/* ---------- rendering: sources ---------- */
+function renderSources(){
+  const n = nb(), p = $('#pSources');
+  if(ui.src.mode === 'reader'){
+    const s = n.sources.find(x => x.id === ui.src.id);
+    if(s){
+      p.innerHTML = `<div class="p-head"><h2>Source</h2></div>
+        <div class="p-body"><div class="reader-head"><button class="icon-btn" data-act="srcBack" aria-label="Back to sources">${ic('back')}</button><h3>${esc(s.title)}</h3></div>
+        <div class="reader">${esc(s.text)}</div></div>`;
+      return;
+    }
+    ui.src = {mode: 'list', id: null};
+  }
+  const all = n.sources.length && n.sources.every(s => s.on);
+  const list = n.sources.map(s => {
+    const armed = ui.confirm === 'src:' + s.id;
+    return `<li class="src" data-id="${s.id}">
+      <button class="src-main" data-act="open" title="Open source"><span class="src-ico">${ic('doc')}</span>
+        <span class="src-txt"><span class="src-title">${esc(s.title)}${s.research ? '<span class="tag">Research</span>' : ''}</span><span class="src-meta">${words(s.text).toLocaleString()} words</span></span></button>
+      <label class="chk"><input type="checkbox" data-act="toggle" ${s.on ? 'checked' : ''} aria-label="Use ${esc(s.title)} in answers"></label>
+      <button class="icon-btn${armed ? ' warn' : ''}" data-act="delSrc" aria-label="${armed ? 'Confirm removing' : 'Remove'} ${esc(s.title)}">${armed ? 'Remove?' : ic('trash')}</button>
+    </li>`;
+  }).join('');
+  p.innerHTML = `<div class="p-head"><h2>Sources</h2><button class="btn sm" data-act="addSource">${ic('plus')} Add</button></div>
+    <div class="p-body">${n.sources.length
+      ? `<div class="sel-all"><span>Select all sources</span><label class="chk"><input type="checkbox" data-act="toggleAll" ${all ? 'checked' : ''} aria-label="Select all sources"></label></div><ul class="src-list">${list}</ul>`
+      : `<div class="empty"><strong>No sources yet</strong>Add notes, an article or a chapter. Chat and study tools only use what you add here.<div style="margin-top:12px"><button class="btn primary" data-act="addSource">${ic('plus')} Add a source</button></div></div>`}
+    </div>`;
+}
+
+/* ---------- rendering: chat ---------- */
+const SUGGEST = ['Summarize the main ideas', 'Explain the hardest concept simply', 'What would an exam ask about this?', 'Compare the sources'];
+
+function citedNums(m){
+  const set = new Set();
+  String(m.content || '').replace(/\[(\d{1,2}(?:\s*,\s*\d{1,2})*)\]/g, (x, g) => { g.split(',').forEach(v => set.add(+v)); return x; });
+  return [...set].sort((a, b) => a - b);
+}
+function msgHTML(m, i){
+  if(m.role === 'user') return `<div class="msg user" data-i="${i}"><div class="bubble">${esc(m.content)}</div></div>`;
+  const n = nb();
+  const body = m.pending && !m.content ? '<p class="think">Reading your sources<span class="dots"></span></p>' : md(m.content, true);
+  let cited = '';
+  if(!m.pending && m.content){
+    const btns = citedNums(m).map(k => {
+      const s = n.sources.find(x => x.id === (m.refs || [])[k - 1]);
+      return s ? `<button data-act="cite" data-n="${k}"><b>${k}</b><span>${esc(s.title)}</span></button>` : '';
+    }).join('');
+    if(btns) cited = `<div class="cited">${btns}</div>`;
+  }
+  const acts = !m.pending && m.content && !m.err
+    ? `<div class="msg-acts"><button class="chip-btn" data-act="copyMsg">${ic('copy')} Copy</button><button class="chip-btn" data-act="saveMsg">${ic('save')} Save to notes</button></div>` : '';
+  const err = m.err ? `<p class="err">${esc(m.err)}</p>` : '';
+  return `<div class="msg bot" data-i="${i}"><div class="md body">${body}</div>${cited}${err}${acts}</div>`;
+}
+function renderChat(keepInput){
+  const n = nb(), p = $('#pChat');
+  const prev = keepInput && $('#q') ? {v: $('#q').value, f: document.activeElement === $('#q')} : null;
+  const on = activeSources(n);
+  const guide = n.messages.length ? '' : `<div class="guide"><span class="eyebrow">Notebook guide</span>
+      <h3>${esc(n.title)}</h3>
+      <p>${n.sources.length ? `${on.length} of ${n.sources.length} source${n.sources.length === 1 ? '' : 's'} selected. Ask anything and every answer cites the source it came from.` : 'Add your school notes, slides exported as PDF, or a chapter. Then ask questions, make flashcards and take quizzes on them.'}</p>
+      ${n.sources.length ? '' : `<button class="btn primary" data-act="addSource">${ic('plus')} Add your first source</button>`}
+      ${on.length ? `<div class="chips">${SUGGEST.filter(s => s !== 'Compare the sources' || on.length > 1).map(s => `<button class="chip-btn" data-act="ask" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>` : ''}
+      ${ui.aiOff ? `<div class="notice" style="margin-top:12px">Chat, research and the study tools need an AI connection. It takes a minute and the Gemini key is free.<div style="margin-top:8px"><button class="btn primary sm" data-act="settings">Connect Gemini</button></div></div>` : ''}
+    </div>`;
+  p.innerHTML = `<div class="p-head">${segHTML()}<span class="hint">${on.length} source${on.length === 1 ? '' : 's'} in use</span></div>
+    <div class="p-body chat-body" id="msgs">${guide}${n.messages.map(msgHTML).join('')}</div>
+    <div class="composer">
+      <div class="box"><textarea id="q" rows="1" placeholder="${on.length ? 'Ask about your sources' : 'Add a source to start'}" aria-label="Ask about your sources" ${on.length ? '' : 'disabled'}></textarea>
+        ${ui.busy ? `<button class="send" data-act="stop" aria-label="Stop answering">${ic('stop')}</button>` : `<button class="send" data-act="send" aria-label="Send question" ${on.length ? '' : 'disabled'}>${ic('send')}</button>`}</div>
+      <div class="meta-row"><span>Answers come only from selected sources.</span>${n.messages.length ? '<button class="chip-btn" style="padding:2px 10px;font-size:12.5px" data-act="clearChat">Clear chat</button>' : ''}</div>
+    </div>`;
+  if(prev){ const q = $('#q'); q.value = prev.v; if(prev.f) q.focus(); growQ(); }
+  const m = $('#msgs'); if(m) m.scrollTop = m.scrollHeight;
+}
+/* ---------- quick research ---------- */
+function segHTML(){
+  return `<div class="seg" role="tablist" aria-label="Chat or quick research">
+    <button role="tab" data-act="mid" data-m="chat" aria-selected="${ui.mid === 'chat'}">Chat</button>
+    <button role="tab" data-act="mid" data-m="research" aria-selected="${ui.mid === 'research'}">Quick research</button></div>`;
+}
+function renderMid(keep){ if(ui.mid === 'research') renderResearch(); else renderChat(keep); }
+const R_MODES = {
+  overview: {label: 'Overview', ins: 'Give a clear overview: what it is, why it matters, the key facts, and the most common misconceptions.'},
+  terms: {label: 'Key terms', ins: 'List the 10 most important terms with a one-sentence definition each, grouped sensibly.'},
+  simple: {label: 'Explain simply', ins: 'Explain it simply for a smart 14-year-old, with one analogy and one short worked example.'},
+  exam: {label: 'Exam focus', ins: 'Describe what exams usually ask about this, then give 5 likely questions with a brief model answer for each.'}
+};
+const curR = () => (nb().research || []).find(r => r.id === ui.rcur);
+function renderResearch(){
+  const n = nb(), p = $('#pChat'), on = activeSources(n);
+  const hist = (n.research || []);
+  const r = curR();
+  const modes = Object.entries(R_MODES).map(([k, v]) => `<button class="chip-btn" data-act="rmode" data-k="${k}" aria-pressed="${ui.rmode === k}">${v.label}</button>`).join('');
+  let result = '';
+  if(r){
+    const m = R_MODES[r.mode] || R_MODES.overview;
+    const done = r.status === 'done' && r.content;
+    result = `<div class="rs-result"><span class="eyebrow">${esc(m.label)} · ${fmtDate(r.created)}</span><h3 class="rt">${esc(r.topic)}</h3>
+      <div class="notice" style="margin:10px 0 12px">From Claude's general knowledge, not a live web search and not from your sources. It can be out of date or wrong, so check important facts in your textbook.</div>
+      <div class="md" id="rsOut">${r.status === 'working' && !r.content ? '<p class="think">Researching<span class="dots"></span></p>' : md(r.content, false)}</div>
+      ${r.err ? `<p class="err">${esc(r.err)}</p>` : ''}
+      ${done ? `<div class="msg-acts" style="margin-top:12px"><button class="chip-btn" data-act="radd">${ic('plus')} Add to my sources</button><button class="chip-btn" data-act="rnote">${ic('save')} Save as note</button><button class="chip-btn" data-act="rcopy">${ic('copy')} Copy</button></div>` : ''}
+    </div>`;
+  }
+  const list = hist.map(h => {
+    const armed = ui.confirm === 'r:' + h.id;
+    return `<li class="item" data-id="${h.id}"><button class="item-main" data-act="ropen">${ic('faq')}<span class="item-t"><b>${esc(h.topic)}</b><small>${esc((R_MODES[h.mode] || R_MODES.overview).label)} · ${fmtDate(h.created)}</small></span></button>
+      <button class="icon-btn${armed ? ' warn' : ''}" data-act="rdel" aria-label="${armed ? 'Confirm deleting' : 'Delete'} research on ${esc(h.topic)}">${armed ? 'Delete?' : ic('trash')}</button></li>`;
+  }).join('');
+  p.innerHTML = `<div class="p-head">${segHTML()}<span class="hint">Look things up fast</span></div>
+    <div class="p-body rs-body">
+      <div class="rs-row"><input id="rq" type="text" placeholder="Topic to research, e.g. the Krebs cycle" aria-label="Topic to research" value="${esc(ui.rq)}" maxlength="200">
+        ${ui.rbusy ? `<button class="btn" data-act="rstop">${ic('stop')} Stop</button>` : `<button class="btn primary" data-act="rgo">Research</button>`}</div>
+      <div class="modes" role="group" aria-label="Research style">${modes}</div>
+      <label class="opt-line"><input type="checkbox" id="rtailor" ${ui.rtailor ? 'checked' : ''} ${on.length ? '' : 'disabled'}> Skip what my selected sources already cover</label>
+      ${ui.aiOff ? `<div class="notice">Research needs an AI connection. <button class="btn primary sm" data-act="settings" style="margin-left:6px">Connect Gemini</button></div>` : ''}
+      ${result}
+      ${hist.length ? `<div><div class="list-head" style="margin-top:4px"><span class="eyebrow">Recent research</span></div><ul class="rs-list">${list}</ul></div>` : (r ? '' : '<div class="empty"><strong>Quick research</strong>Type a topic and pick a style. You get a short briefing you can add to your sources or save as a note.</div>')}
+    </div>`;
+}
+async function research(){
+  const topic = (ui.rq || '').trim();
+  if(!topic || ui.rbusy){ if(!topic) toast('Type a topic first.'); return; }
+  if(!engineReady()){ ui.aiOff = true; openSettings(); return; }
+  const n = nb();
+  const entry = {id: uid(), topic, mode: ui.rmode, content: '', created: Date.now(), status: 'working'};
+  n.research = [entry].concat(n.research || []).slice(0, 20);
+  ui.rcur = entry.id; ui.rbusy = true; ui.rctl = new AbortController();
+  renderResearch();
+  let tailor = '';
+  if(ui.rtailor){
+    const on = activeSources(n).slice(0, 8);
+    if(on.length) tailor = 'The learner already has these sources, so skip what they likely know and focus on what is missing:\n' + on.map(s => `- ${s.title}: ${s.text.slice(0, 600).replace(/\s+/g, ' ')}`).join('\n') + '\n';
+  }
+  const prompt = `You are a research assistant helping a student.\nTopic: "${topic}"\n${R_MODES[entry.mode].ins}\n${tailor}Write in markdown, about 300-450 words, accurate and well organized. You are answering from general knowledge with no web access, so never invent statistics, quotes, dates, citations or links, and say plainly when you are unsure. End with a "## Verify next" section listing 3 specific things the student should confirm in their textbook or class notes.`;
+  try{
+    const r = await aiText(prompt, {signal: ui.rctl.signal, onText: ({text}) => {
+      entry.content = text;
+      const el = $('#rsOut'); if(el && ui.rcur === entry.id && ui.mid === 'research' && S.active === n.id) el.innerHTML = md(text, false);
+    }});
+    entry.content = r.text; entry.status = 'done';
+    if(r.truncated) entry.err = 'This was cut short by the length limit. Research a narrower topic for a full briefing.';
+  }catch(e){
+    if(e && e.code === 'cancelled'){
+      if(entry.content){ entry.status = 'done'; }
+      else{ n.research = (n.research || []).filter(x => x.id !== entry.id); if(ui.rcur === entry.id) ui.rcur = null; }
+    }else{
+      entry.err = errCopy(e); entry.status = entry.content ? 'done' : 'error';
+      if(e && e.text) entry.content = e.text;
+    }
+  }
+  ui.rbusy = false; ui.rctl = null; save();
+  if(S.active === n.id && ui.mid === 'research') renderResearch();
+}
+
+function growQ(){ const q = $('#q'); if(!q) return; q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 140) + 'px'; }
+
+async function ask(text){
+  const n = nb();
+  const q = (text || '').trim(); if(!q || ui.busy) return;
+  const on = activeSources(n);
+  if(!on.length){ toast('Select at least one source first.'); return; }
+  if(!engineReady()){ ui.aiOff = true; openSettings(); return; }
+  const history = [];
+  for(let i = 0; i + 1 < n.messages.length; i++){
+    const u = n.messages[i], a = n.messages[i + 1];
+    if(u.role === 'user' && a.role === 'assistant' && !a.err && a.content && !a.pending){ history.push(u, a); i++; }
+  }
+  const turns = [{role: 'user', content:
+    `You are a study assistant inside a notebook. Answer using only the numbered sources below. If the sources do not cover the question, say so in one sentence and suggest what to add. Cite every claim with its source number in square brackets, like [1] or [1][2]. Be clear and concise: short paragraphs, bullets for lists, **bold** for key terms. Match the learner's level.\n\nSOURCES\n\n${ctx(on)}`}];
+  history.slice(-8).forEach(m => turns.push({role: m.role, content: m.content}));
+  turns.push({role: 'user', content: q});
+
+  n.messages.push({role: 'user', content: q});
+  const bot = {role: 'assistant', content: '', refs: on.map(s => s.id), pending: true};
+  n.messages.push(bot);
+  ui.busy = true; ui.ctl = new AbortController();
+  ui.mid = 'chat';
+  renderChat();
+  const idx = n.messages.length - 1;
+  const setBody = txt => {
+    if(S.active !== n.id) return;
+    const el = document.querySelector(`#msgs .msg[data-i="${idx}"] .body`);
+    if(el){ el.innerHTML = md(txt, true); const m = $('#msgs'); if(m && m.scrollHeight - m.scrollTop - m.clientHeight < 140) m.scrollTop = m.scrollHeight; }
+  };
+  try{
+    const r = await aiText(turns, {signal: ui.ctl.signal, onText: ({text}) => { bot.content = text; setBody(text); }});
+    bot.content = r.text;
+    if(r.truncated) bot.err = 'This answer was cut short. Ask for less at a time.';
+  }catch(e){
+    if(e && e.code === 'cancelled'){
+      const k = n.messages.indexOf(bot);
+      if(!bot.content && k >= 0){ n.messages.splice(k, 1); }
+    }else{
+      bot.err = errCopy(e);
+      if(e && e.text) bot.content = e.text;
+    }
+  }
+  delete bot.pending; ui.busy = false; ui.ctl = null;
+  save();
+  if(S.active === n.id && ui.mid === 'chat'){ renderChat(); if(window.matchMedia('(pointer:fine)').matches){ const q = $('#q'); if(q) q.focus(); } }
+}
+
+/* ---------- rendering: studio ---------- */
+const typeLabel = it => (KINDS[it.type] || KINDS.note).label;
+function renderStudio(){
+  const n = nb(), p = $('#pStudio');
+  if(ui.std.mode === 'item'){
+    const it = n.items.find(x => x.id === ui.std.id);
+    if(it){ p.innerHTML = itemView(it); return; }
+    ui.std = {mode: 'home', id: null};
+  }
+  const tiles = Object.entries(KINDS).filter(([k]) => k !== 'note').map(([k, v]) =>
+    `<button class="tile" data-act="tile" data-k="${k}">${ic(v.icon)}<b>${v.label}</b><small>${v.desc}</small></button>`).join('');
+  const items = n.items.map(it => {
+    const k = KINDS[it.type] || KINDS.note, armed = ui.confirm === 'it:' + it.id;
+    const sub = it.status === 'working' ? 'Generating...' : it.status === 'error' ? `<span class="bad">Failed</span>` : `${typeLabel(it)} · ${fmtDate(it.created)}`;
+    return `<li class="item" data-id="${it.id}"><button class="item-main" data-act="openItem">${ic(k.icon)}<span class="item-t"><b>${esc(it.title)}</b><small>${sub}</small></span></button>
+      <button class="icon-btn${armed ? ' warn' : ''}" data-act="delItem" aria-label="${armed ? 'Confirm deleting' : 'Delete'} ${esc(it.title)}">${armed ? 'Delete?' : ic('trash')}</button></li>`;
+  }).join('');
+  p.innerHTML = `<div class="p-head"><h2>Studio</h2><span class="hint">${activeSources(n).length} source${activeSources(n).length === 1 ? '' : 's'} in use</span></div>
+    <div class="p-body">
+      ${ui.aiOff ? `<div class="notice" style="margin-bottom:10px">Study tools need an AI connection. <button class="btn primary sm" data-act="settings" style="margin-left:6px">Connect Gemini</button></div>` : ''}
+      <div class="tiles">${tiles}</div>
+      <div class="list-head"><span class="eyebrow">Saved in this notebook</span>
+        <span style="display:flex;gap:6px"><button class="btn sm" data-act="addNote">${ic('plus')} Note</button>${n.items.length ? `<button class="btn sm" data-act="exportNotes" id="expBtn">${ic('download')} Export</button>` : ''}</span></div>
+      ${n.items.length ? `<ul class="items">${items}</ul>` : '<div class="empty"><strong>Nothing saved yet</strong>Generated study material and notes you save from chat appear here.</div>'}
+    </div>`;
+}
+
+function itemView(it){
+  const k = KINDS[it.type] || KINDS.note;
+  const regen = it.type !== 'note' ? `<button class="icon-btn" data-act="regen" aria-label="Generate again" title="Generate again">${ic('refresh')}</button>` : '';
+  const head = `<div class="p-head"><h2>Studio</h2></div><div class="p-body"><div class="detail-head"><button class="icon-btn" data-act="itemBack" aria-label="Back to Studio">${ic('back')}</button><h3>${esc(it.title)}</h3>${regen}</div>`;
+  if(it.status === 'working') return head + `<div class="working"><span class="dots"></span> Generating ${esc(k.label.toLowerCase())}<span class="dots"></span></div></div>`;
+  if(it.status === 'error' && !it.content) return head + `<p class="err">${esc(it.error || 'Generation failed.')}</p><button class="btn" data-act="regen">${ic('refresh')} Try again</button></div>`;
+  let body = '';
+  if(it.type === 'note') body = noteView(it);
+  else if(it.type === 'flashcards') body = deckView(it);
+  else if(it.type === 'quiz') body = quizView(it);
+  else if(it.type === 'mindmap') body = mapView(it);
+  else if(it.type === 'audio') body = audioView(it);
+  else body = `<div class="md">${md(it.content, false)}</div><div class="msg-acts"><button class="chip-btn" data-act="copyItem">${ic('copy')} Copy</button></div>`;
+  const warn = it.error ? `<p class="err">${esc(it.error)}</p>` : '';
+  return head + warn + body + '</div>';
+}
+function noteView(it){
+  if(ui.editNote){
+    return `<input class="note-in" id="noteTitle" type="text" value="${esc(it.title)}" aria-label="Note title">
+      <textarea class="note-in" id="noteBody" aria-label="Note text">${esc(it.content || '')}</textarea>
+      <div class="row"><button class="btn primary" data-act="saveNote">Save note</button></div>`;
+  }
+  return `<div class="md">${it.content ? md(it.content, false) : '<p class="hint">This note is empty.</p>'}</div>
+    <div class="msg-acts"><button class="chip-btn" data-act="editNote">${ic('edit')} Edit</button><button class="chip-btn" data-act="copyItem">${ic('copy')} Copy</button></div>`;
+}
+function deckView(it){
+  const d = ui.deck, cards = it.content, c = cards[d.order[d.i]];
+  return `<div class="deck"><button class="card${d.flip ? ' back' : ''}" data-act="flip" aria-label="Flip card"><span><span class="side">${d.flip ? 'Answer' : 'Question'}</span>${esc(d.flip ? c.a : c.q)}</span></button>
+    <div class="deck-nav"><button class="btn sm" data-act="prev" ${d.i === 0 ? 'disabled' : ''}>${ic('back')} Prev</button><span class="count">${d.i + 1} / ${cards.length}</span><button class="btn sm" data-act="next" ${d.i === cards.length - 1 ? 'disabled' : ''}>Next ${ic('next')}</button></div>
+    <div class="row" style="justify-content:center"><button class="btn sm" data-act="shuffle">${ic('shuffle')} Shuffle</button></div></div>`;
+}
+function quizView(it){
+  const qz = ui.quiz, qs = it.content;
+  if(qz.done){
+    return `<div style="text-align:center;padding:10px 0"><span class="eyebrow">Your score</span><div class="score">${qz.score} / ${qs.length}</div>
+      <p class="hint" style="margin-bottom:14px">${qz.score === qs.length ? 'Perfect run.' : qz.score >= qs.length * 0.7 ? 'Solid. Review the ones you missed.' : 'Keep going. Re-read the sources and try again.'}</p>
+      <button class="btn primary" data-act="qrestart">${ic('refresh')} Try again</button></div>`;
+  }
+  const q = qs[qz.i], L = 'ABCDEFGH';
+  const opts = q.options.map((o, i) => {
+    let cls = '';
+    if(qz.pick !== null){ if(i === q.answer) cls = ' right'; else if(i === qz.pick) cls = ' wrong'; }
+    return `<button class="opt${cls}" data-act="pick" data-i="${i}" ${qz.pick !== null ? 'disabled' : ''}><span class="k">${L[i]}</span><span>${esc(o)}</span></button>`;
+  }).join('');
+  const fb = qz.pick !== null ? `<div class="why"><strong>${qz.pick === q.answer ? 'Correct.' : 'Not quite.'}</strong> ${esc(q.why || '')}</div><button class="btn primary" data-act="qnext">${qz.i === qs.length - 1 ? 'See score' : 'Next question'}</button>` : '';
+  return `<div class="q-top"><span>QUESTION ${qz.i + 1} OF ${qs.length}</span><span>SCORE ${qz.score}</span></div><p class="q-text">${esc(q.q)}</p><div class="opts">${opts}</div>${fb}`;
+}
+function mapView(it){
+  const node = o => o.children.length
+    ? `<li><details open><summary>${esc(o.title)}</summary><ul>${o.children.map(node).join('')}</ul></details></li>`
+    : `<li><div class="leaf">${esc(o.title)}</div></li>`;
+  return `<div class="mm-root">${esc(it.content.title)}</div><ul class="tree">${it.content.children.map(node).join('')}</ul>`;
+}
+function parseScript(text){
+  const who = [];
+  return String(text || '').split('\n').map(l => /^\s*\**([A-Za-z][\w ]{0,20}?)\**\s*:\s*(.+)$/.exec(l)).filter(Boolean).map(m => {
+    const name = m[1].trim(); if(!who.includes(name)) who.push(name);
+    return {who: name, idx: who.indexOf(name), text: m[2].replace(/\*+/g, '').trim()};
+  });
+}
+function audioView(it){
+  const lines = parseScript(it.content);
+  const canSpeak = 'speechSynthesis' in window && lines.length;
+  const play = canSpeak ? `<div class="msg-acts" style="margin:0 0 12px"><button class="btn sm primary" data-act="listen">${ui.speaking ? ic('stop') + ' Stop' : ic('play') + ' Listen'}</button><span class="hint" style="align-self:center">Read aloud by your device's voices.</span></div>` : '';
+  const body = lines.length
+    ? lines.map(l => `<p style="margin:0 0 10px"><span class="eyebrow" style="display:block;color:${l.idx % 2 ? 'var(--muted)' : 'var(--accent)'}">${esc(l.who)}</span>${esc(l.text)}</p>`).join('')
+    : `<div class="md">${md(it.content, false)}</div>`;
+  return play + body + `<div class="msg-acts"><button class="chip-btn" data-act="copyItem">${ic('copy')} Copy script</button></div>`;
+}
+function speak(lines){
+  try{
+    const syn = window.speechSynthesis; syn.cancel();
+    const voices = syn.getVoices().filter(v => /^en/i.test(v.lang));
+    lines.forEach((l, i) => {
+      const u = new SpeechSynthesisUtterance(l.text);
+      if(voices.length) u.voice = voices[l.idx % 2 === 0 ? 0 : Math.min(1, voices.length - 1)];
+      u.pitch = l.idx % 2 ? 1.2 : 0.95; u.rate = 1.02;
+      if(i === lines.length - 1) u.onend = () => { ui.speaking = false; renderStudio(); };
+      u.onerror = () => { ui.speaking = false; renderStudio(); };
+      syn.speak(u);
+    });
+    ui.speaking = true;
+  }catch(e){ ui.speaking = false; toast('This device could not play audio here.'); }
+}
+function stopSpeak(){ try{ window.speechSynthesis.cancel(); }catch(e){} ui.speaking = false; }
+
+async function generate(kind, id){
+  const n = nb(), on = activeSources(n);
+  if(!on.length){ toast('Select at least one source first.'); return; }
+  if(!engineReady()){ ui.aiOff = true; openSettings(); return; }
+  let it = id ? n.items.find(x => x.id === id) : null;
+  if(!it){
+    it = {id: uid(), type: kind, title: KINDS[kind].label, created: Date.now(), status: 'working', content: null};
+    n.items.unshift(it);
+  }else{ it.status = 'working'; it.error = null; }
+  if(S.active === n.id) renderStudio();
+  try{
+    const input = PROMPTS[it.type](ctx(on));
+    if(KINDS[it.type].json){
+      const data = await aiJson(input);
+      const v = normalize(it.type, data);
+      if(!v) throw {code: 'invalid_json'};
+      it.content = v;
+    }else{
+      const r = await aiText(input);
+      it.content = r.text;
+      if(r.truncated) it.error = 'This was cut short by the length limit. Generate again for a fresh pass.';
+    }
+    it.status = 'done';
+  }catch(e){
+    it.status = 'error'; it.error = errCopy(e);
+    if(e && e.text && !KINDS[it.type].json) it.content = e.text;
+  }
+  save(); if(S.active === n.id && !ui.editNote) renderStudio();
+}
+
+/* ---------- export ---------- */
+function itemToMd(it){
+  const h = `# ${it.title}\n\n`;
+  if(it.status !== 'done' && it.type !== 'note') return '';
+  if(it.type === 'flashcards') return h + it.content.map((c, i) => `${i + 1}. **${c.q}**\n   ${c.a}`).join('\n') + '\n';
+  if(it.type === 'quiz') return h + it.content.map((q, i) => `${i + 1}. ${q.q}\n${q.options.map((o, j) => `   - ${'ABCDEFGH'[j]}. ${o}${j === q.answer ? ' (correct)' : ''}`).join('\n')}\n   ${q.why}`).join('\n\n') + '\n';
+  if(it.type === 'mindmap'){
+    const w = (o, d) => '  '.repeat(d) + '- ' + o.title + '\n' + o.children.map(c => w(c, d + 1)).join('');
+    return h + w(it.content, 0);
+  }
+  return h + (it.content || '') + '\n';
+}
+async function exportNotes(){
+  const n = nb();
+  const body = `# ${n.title}\n\n` + n.items.map(itemToMd).filter(Boolean).join('\n---\n\n');
+  try{
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+    if(!dl && !window.claude){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([body], {type: 'text/markdown'}));
+      a.download = ((n.title || 'notebook').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'notebook') + '-notes.md';
+      document.body.appendChild(a); a.click(); a.remove(); toast('Notes downloaded.'); return;
+    }
+    if(!dl){ await navigator.clipboard.writeText(body); toast('Downloads are not available here. Copied to your clipboard instead.'); return; }
+    const name = (n.title || 'notebook').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'notebook';
+    await dl.save({filename: name + '-notes.md', data: body});
+    toast('Notes saved.');
+  }catch(e){
+    if(e && e.code === 'declined') return;
+    toast('Could not save the file. Try Copy on an individual item.');
+  }
+}
+
+/* ---------- add source ---------- */
+const dlg = $('#addDlg');
+function openAdd(){
+  $('#srcTitle').value = ''; $('#srcText').value = '';
+  $('#addMsg').textContent = 'Very long sources are trimmed when sent to Claude, so split large books into chapters.';
+  dlg.hidden = false; $('#srcTitle').focus();
+}
+function closeAdd(){ dlg.hidden = true; }
+function addSource(title, text){
+  const n = nb();
+  const clean = String(text).replace(/\r/g, '').trim().slice(0, 400000);
+  const t = (title || '').trim() || clean.split('\n')[0].slice(0, 60) || 'Untitled source';
+  const src = {id: uid(), title: t, text: clean, on: true};
+  n.sources.push(src);
+  save();
+  return src;
+}
+const scriptCache = {};
+function loadScript(src){
+  if(scriptCache[src]) return scriptCache[src];
+  return scriptCache[src] = new Promise((res, rej) => {
+    const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => { delete scriptCache[src]; rej(new Error('load failed')); };
+    document.head.appendChild(el);
+  });
+}
+async function pdfText(f){
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  const doc = await window.pdfjsLib.getDocument({data: await f.arrayBuffer()}).promise;
+  const out = [];
+  for(let i = 1; i <= doc.numPages; i++){
+    const page = await doc.getPage(i), c = await page.getTextContent();
+    out.push(c.items.map(x => x.str).join(' '));
+  }
+  return out.join('\n\n');
+}
+async function docxText(f){
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js');
+  const r = await window.mammoth.extractRawText({arrayBuffer: await f.arrayBuffer()});
+  return r.value;
+}
+async function readFiles(files){
+  let added = 0; const bad = [];
+  $('#addMsg').textContent = 'Reading files...';
+  for(const f of files){
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    try{
+      let t;
+      if(ext === 'pdf') t = await pdfText(f);
+      else if(ext === 'docx') t = await docxText(f);
+      else if(['doc', 'ppt', 'pptx', 'epub', 'png', 'jpg', 'jpeg', 'heic'].includes(ext)){ bad.push(f.name + ' (unsupported type)'); continue; }
+      else{
+        t = await f.text();
+        if(ext === 'html' || ext === 'htm'){
+          const d = new DOMParser().parseFromString(t, 'text/html');
+          d.querySelectorAll('script,style,noscript').forEach(x => x.remove());
+          t = d.body ? d.body.textContent : t;
+        }
+      }
+      t = String(t || '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+      if(t.trim().length > 20){ addSource(f.name.replace(/\.[^.]+$/, ''), t); added++; }
+      else bad.push(f.name + (ext === 'pdf' ? ' (no selectable text, it may be a scan)' : ' (empty)'));
+    }catch(e){ bad.push(f.name + ' (could not be read)'); }
+  }
+  if(bad.length){
+    $('#addMsg').textContent = 'Not added: ' + bad.join('; ') + '. You can always paste the text below instead.';
+  }else{
+    $('#addMsg').textContent = '';
+  }
+  if(added){ if(!bad.length) closeAdd(); renderAll(); toast(added === 1 ? 'Source added.' : added + ' sources added.'); }
+}
+const drop = $('#dropZone');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { if(e.dataTransfer && e.dataTransfer.files.length) readFiles([...e.dataTransfer.files]); });
+$('#fileIn').addEventListener('change', e => { readFiles([...e.target.files]); e.target.value = ''; });
+dlg.addEventListener('click', e => { if(e.target === dlg) closeAdd(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !dlg.hidden) closeAdd(); });
+
+/* ---------- AI settings dialog ---------- */
+const sdlg = $('#aiDlg');
+function setAiStatus(msg, kind){ const el = $('#aiMsg'); el.textContent = msg; el.className = 'hint st ' + (kind || ''); }
+function openSettings(){
+  const c = aiCfg();
+  $('#gKey').value = c.key; $('#gModel').value = c.model;
+  $('#aiRemoveBtn').hidden = !c.key;
+  setAiStatus(c.key ? (DEFAULT_KEY && c.key === DEFAULT_KEY ? 'This copy of Note Flow comes with a Gemini key already set.' : 'A key is saved in this browser.') : (ui.claudeOK ? 'You are inside Claude, so Claude works without a key. Add a Gemini key to use Gemini instead.' : 'No key yet.'), '');
+  sdlg.hidden = false; (c.key ? $('#gModel') : $('#gKey')).focus();
+}
+function closeSettings(){ sdlg.hidden = true; }
+async function aiTest(){
+  const key = $('#gKey').value.trim();
+  if(!key){ setAiStatus('Paste your API key first.', 'bad'); return false; }
+  setAiStatus('Checking key...', '');
+  try{
+    const r = await fetch(GBASE + '/models?pageSize=200', {headers: {'x-goog-api-key': key}});
+    if(!r.ok){
+      let m = ''; try{ m = (await r.json()).error.message || ''; }catch(e){}
+      setAiStatus(errCopy({code: mapStatus(r.status, m), message: m}), 'bad'); return false;
+    }
+    const j = await r.json();
+    const names = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => String(m.name).replace(/^models\//, '')).filter(n => /gemini/.test(n));
+    const flash = names.filter(n => /flash/.test(n) && !/image|tts|live|audio|robotics|embedding/.test(n));
+    $('#gModels').innerHTML = (flash.length ? flash : names).map(n => `<option value="${esc(n)}">`).join('');
+    const cur = $('#gModel').value.trim();
+    if(!cur || !names.includes(cur)){
+      const pick = ['gemini-2.5-flash', 'gemini-flash-latest'].find(x => names.includes(x)) || flash[0] || names[0];
+      if(pick) $('#gModel').value = pick;
+    }
+    const model = $('#gModel').value.trim() || GEMINI_DEFAULT;
+    setAiStatus('Key accepted. Sending a test message to ' + model + '...', '');
+    const r2 = await fetch(GBASE + '/models/' + encodeURIComponent(model) + ':generateContent', {
+      method: 'POST', headers: {'Content-Type': 'application/json', 'x-goog-api-key': key},
+      body: JSON.stringify({contents: [{role: 'user', parts: [{text: 'Reply with the single word: ready'}]}], generationConfig: {maxOutputTokens: 256}})
+    });
+    if(!r2.ok){
+      let m2 = ''; try{ m2 = (await r2.json()).error.message || ''; }catch(e){}
+      setAiStatus(errCopy({code: mapStatus(r2.status, m2), message: m2}), 'bad'); return false;
+    }
+    const j2 = await r2.json();
+    const reply = (((j2.candidates || [])[0] || {}).content || {}).parts;
+    const said = (reply || []).map(x => x.text || '').join('').trim().slice(0, 40);
+    setAiStatus('Working. ' + model + ' replied' + (said ? ': "' + said + '"' : ' (no text, but the connection works)') + '. ' + names.length + ' models available. Press Save.', 'good');
+    return true;
+  }catch(e){ setAiStatus(errCopy({code: 'network'}), 'bad'); return false; }
+}
+sdlg.addEventListener('click', e => { if(e.target === sdlg) closeSettings(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !sdlg.hidden) closeSettings(); });
+
+/* ---------- events ---------- */
+function applyTab(){
+  document.querySelectorAll('.tabbar button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.t === ui.tab)));
+  [['sources', '#pSources'], ['chat', '#pChat'], ['studio', '#pStudio']].forEach(([k, s]) => $(s).classList.toggle('on', ui.tab === k));
+}
+function renderAll(){
+  renderTop(); renderSources(); renderMid(true); renderStudio(); applyTab();
+}
+function itemOf(el){ const li = el.closest('[data-id]'); return li ? li.dataset.id : null; }
+function curItem(){ return nb().items.find(x => x.id === ui.std.id); }
+function openItem(id){
+  const it = nb().items.find(x => x.id === id); if(!it) return;
+  ui.std = {mode: 'item', id}; ui.editNote = false;
+  if(it.type === 'flashcards' && it.content){ ui.deck = {i: 0, flip: false, order: it.content.map((_, i) => i)}; }
+  if(it.type === 'quiz'){ ui.quiz = {i: 0, pick: null, score: 0, done: false}; }
+  renderStudio();
+}
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); toast('Copied.'); }
+  catch(e){ toast('Copy is blocked here. Select the text and copy it manually.'); }
+}
+
+const H = {
+  settings: openSettings, aiClose: closeSettings, aiTest: aiTest,
+  aiSave: () => {
+    const key = $('#gKey').value.trim();
+    if(!key){ setAiStatus('Paste your API key first, or press Cancel.', 'bad'); return; }
+    setAiCfg({key, model: $('#gModel').value.trim() || GEMINI_DEFAULT, off: false});
+    closeSettings(); refreshEngine(); toast('Gemini connected.');
+  },
+  aiRemove: () => { setAiCfg({key: '', model: aiCfg().model, off: true}); closeSettings(); refreshEngine(); toast('Key removed from this browser.'); },
+  mid: b => { ui.mid = b.dataset.m; renderMid(); },
+  rmode: b => { ui.rmode = b.dataset.k; renderResearch(); },
+  rgo: () => { const q = $('#rq'); if(q) ui.rq = q.value; research(); },
+  rstop: () => { if(ui.rctl) ui.rctl.abort(); },
+  ropen: b => { ui.rcur = itemOf(b); renderResearch(); const o = $('#rsOut'); if(o) o.scrollIntoView({block: 'nearest'}); },
+  rdel: b => {
+    const id = itemOf(b);
+    if(ui.confirm !== 'r:' + id){ askConfirm('r:' + id); return; }
+    const n = nb(); n.research = (n.research || []).filter(x => x.id !== id);
+    if(ui.rcur === id) ui.rcur = null; ui.confirm = null; save(); renderResearch();
+  },
+  radd: () => {
+    const r = curR(); if(!r || !r.content) return;
+    const s = addSource('Research: ' + r.topic, r.content); s.research = true; save(); renderAll(); toast('Added to your sources.');
+  },
+  rnote: () => {
+    const r = curR(); if(!r || !r.content) return;
+    nb().items.unshift({id: uid(), type: 'note', title: 'Research: ' + r.topic.slice(0, 50), created: Date.now(), status: 'done', content: r.content});
+    save(); renderStudio(); toast('Saved to notes.');
+  },
+  rcopy: () => { const r = curR(); if(r) copyText(r.content); },
+  tab: b => { ui.tab = b.dataset.t; applyTab(); },
+  newNb: () => {
+    const x = {id: uid(), title: 'Untitled notebook', sources: [], messages: [], items: []};
+    if(ui.ctl) ui.ctl.abort(); if(ui.rctl) ui.rctl.abort(); ui.rcur = null;
+    S.notebooks.push(x); S.active = x.id; ui.src = {mode: 'list'}; ui.std = {mode: 'home'}; ui.tab = 'sources';
+    save(); renderAll(); $('#nbTitle').focus(); $('#nbTitle').select();
+  },
+  delNb: () => {
+    if(ui.confirm !== 'nb'){ askConfirm('nb'); return; }
+    if(ui.ctl) ui.ctl.abort(); if(ui.rctl) ui.rctl.abort(); ui.rcur = null;
+    S.notebooks = S.notebooks.filter(x => x.id !== S.active);
+    if(!S.notebooks.length){ const f = seed(); f.notebooks[0].sources = []; f.notebooks[0].title = 'Untitled notebook'; S = f; }
+    S.active = S.notebooks[0].id; ui.confirm = null; ui.src = {mode: 'list'}; ui.std = {mode: 'home'};
+    save(); renderAll(); toast('Notebook deleted.');
+  },
+  addSource: openAdd, addCancel: closeAdd,
+  addSubmit: () => {
+    const text = $('#srcText').value;
+    if(!text.trim()){ $('#addMsg').textContent = 'Paste some text or choose a file first.'; return; }
+    addSource($('#srcTitle').value, text); closeAdd(); renderAll(); toast('Source added.');
+  },
+  open: b => { ui.src = {mode: 'reader', id: itemOf(b)}; renderSources(); },
+  srcBack: () => { ui.src = {mode: 'list', id: null}; renderSources(); },
+  delSrc: b => {
+    const id = itemOf(b);
+    if(ui.confirm !== 'src:' + id){ askConfirm('src:' + id); return; }
+    const n = nb(); n.sources = n.sources.filter(s => s.id !== id); ui.confirm = null; save(); renderAll();
+  },
+  cite: b => {
+    const msg = b.closest('.msg'); if(!msg) return;
+    const m = nb().messages[+msg.dataset.i]; if(!m) return;
+    const sid = (m.refs || [])[+b.dataset.n - 1];
+    if(!sid || !nb().sources.some(s => s.id === sid)){ toast('That source is no longer in this notebook.'); return; }
+    ui.src = {mode: 'reader', id: sid}; renderSources();
+    if(window.matchMedia('(max-width:900px)').matches){ ui.tab = 'sources'; applyTab(); }
+  },
+  ask: b => ask(b.dataset.q),
+  send: () => { const q = $('#q'); if(!q || ui.busy) return; const v = q.value; q.value = ''; growQ(); ask(v); },
+  stop: () => { if(ui.ctl) ui.ctl.abort(); },
+  clearChat: () => { if(ui.ctl) ui.ctl.abort(); nb().messages = []; save(); renderChat(); },
+  copyMsg: b => { const m = nb().messages[+b.closest('.msg').dataset.i]; if(m) copyText(m.content.replace(/\[(\d{1,2})\]/g, '[$1]')); },
+  saveMsg: b => {
+    const n = nb(), i = +b.closest('.msg').dataset.i, m = n.messages[i]; if(!m) return;
+    const prev = n.messages[i - 1];
+    const title = (prev && prev.role === 'user' ? prev.content : 'Saved answer').slice(0, 60);
+    n.items.unshift({id: uid(), type: 'note', title, created: Date.now(), status: 'done', content: m.content});
+    save(); renderStudio(); toast('Saved to notes.');
+  },
+  tile: b => { ui.std = {mode: 'home', id: null}; generate(b.dataset.k); },
+  openItem: b => openItem(itemOf(b)),
+  itemBack: () => { stopSpeak(); ui.std = {mode: 'home', id: null}; ui.editNote = false; renderStudio(); },
+  delItem: b => {
+    const id = itemOf(b);
+    if(ui.confirm !== 'it:' + id){ askConfirm('it:' + id); return; }
+    const n = nb(); n.items = n.items.filter(x => x.id !== id); ui.confirm = null; save(); renderStudio();
+  },
+  regen: () => { const it = curItem(); if(it && it.type !== 'note'){ stopSpeak(); generate(it.type, it.id).then(() => { if(ui.std.id === it.id) openItem(it.id); }); } },
+  copyItem: () => { const it = curItem(); if(it) copyText(typeof it.content === 'string' ? it.content : itemToMd(it)); },
+  addNote: () => {
+    const it = {id: uid(), type: 'note', title: 'Untitled note', created: Date.now(), status: 'done', content: ''};
+    nb().items.unshift(it); save(); openItem(it.id); ui.editNote = true; renderStudio();
+  },
+  editNote: () => { ui.editNote = true; renderStudio(); },
+  saveNote: () => {
+    const it = curItem(); if(!it) return;
+    it.title = ($('#noteTitle').value.trim() || 'Untitled note').slice(0, 80); it.content = $('#noteBody').value;
+    ui.editNote = false; save(); renderStudio();
+  },
+  exportNotes: exportNotes,
+  flip: () => { ui.deck.flip = !ui.deck.flip; renderStudio(); },
+  next: () => { const it = curItem(); if(ui.deck.i < it.content.length - 1){ ui.deck.i++; ui.deck.flip = false; renderStudio(); } },
+  prev: () => { if(ui.deck.i > 0){ ui.deck.i--; ui.deck.flip = false; renderStudio(); } },
+  shuffle: () => {
+    const o = ui.deck.order.slice();
+    for(let i = o.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+    ui.deck = {i: 0, flip: false, order: o}; renderStudio();
+  },
+  pick: b => {
+    const it = curItem(), q = it.content[ui.quiz.i];
+    if(ui.quiz.pick !== null) return;
+    ui.quiz.pick = +b.dataset.i; if(ui.quiz.pick === q.answer) ui.quiz.score++;
+    renderStudio();
+  },
+  qnext: () => {
+    const it = curItem();
+    if(ui.quiz.i >= it.content.length - 1) ui.quiz.done = true; else { ui.quiz.i++; ui.quiz.pick = null; }
+    renderStudio();
+  },
+  qrestart: () => { ui.quiz = {i: 0, pick: null, score: 0, done: false}; renderStudio(); },
+  listen: () => {
+    const it = curItem(); if(!it) return;
+    if(ui.speaking){ stopSpeak(); renderStudio(); return; }
+    speak(parseScript(it.content)); renderStudio();
+  }
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if(!b) return;
+  if(b.tagName === 'INPUT') return;
+  const f = H[b.dataset.act]; if(f) f(b, e);
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if(t.id === 'rtailor'){ ui.rtailor = t.checked; return; }
+  if(t.id === 'nbSel'){ if(ui.ctl) ui.ctl.abort(); if(ui.rctl) ui.rctl.abort(); ui.rcur = null; S.active = t.value; ui.src = {mode: 'list'}; ui.std = {mode: 'home'}; ui.confirm = null; stopSpeak(); save(); renderAll(); return; }
+  if(t.dataset && t.dataset.act === 'toggle'){
+    const s = nb().sources.find(x => x.id === itemOf(t)); if(s){ s.on = t.checked; save(); renderSources(); renderMid(true); renderStudio(); }
+  }
+  if(t.dataset && t.dataset.act === 'toggleAll'){
+    nb().sources.forEach(s => { s.on = t.checked; }); save(); renderSources(); renderMid(true); renderStudio();
+  }
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if(t.id === 'nbTitle'){ nb().title = t.value; save(); const o = $('#nbSel option:checked'); if(o) o.textContent = t.value || 'Untitled'; }
+  if(t.id === 'q') growQ();
+  if(t.id === 'rq') ui.rq = t.value;
+});
+document.addEventListener('keydown', e => {
+  if(e.target.id === 'rq' && e.key === 'Enter' && !e.isComposing){ e.preventDefault(); H.rgo(); return; }
+  if(e.target.id === 'q' && e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); H.send(); }
+});
+
+renderAll();
+})();
+</script>
+
+</body>
+</html>
